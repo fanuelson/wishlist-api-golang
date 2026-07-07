@@ -1,4 +1,4 @@
-package wishlist
+package domain
 
 import "github.com/fanuelson/wishlist-api/internal/stringutils"
 

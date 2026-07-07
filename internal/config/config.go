@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fanuelson/wishlist-api/internal/wishlist"
+	"github.com/fanuelson/wishlist-api/internal/wishlist/domain"
 	"github.com/joho/godotenv"
 )
 
@@ -25,7 +25,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:        getEnv("HTTP_ADDR", ":8080"),
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
-		MaxItems:        wishlist.DefaultMaxItemsPerWishlist,
+		MaxItems:        domain.DefaultMaxItemsPerWishlist,
 		ShutdownTimeout: 10 * time.Second,
 	}
 

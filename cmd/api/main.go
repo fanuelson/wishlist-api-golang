@@ -9,14 +9,18 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/gorilla/handlers"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/fanuelson/wishlist-api/internal/config"
-	"github.com/fanuelson/wishlist-api/internal/wishlist"
+	"github.com/fanuelson/wishlist-api/internal/wishlist/adapter"
+	"github.com/fanuelson/wishlist-api/internal/wishlist/application"
+	"github.com/fanuelson/wishlist-api/internal/wishlist/domain"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 	if err := run(logger); err != nil {
 		logger.Error("application terminated", "error", err)
 		os.Exit(1)
@@ -42,15 +46,16 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	adapter := wishlist.NewPostgresAdapter(pool)
-	policy := wishlist.NewLimitPolicy(cfg.MaxItems)
+	postgresAdapter := adapter.NewPostgresAdapter(pool)
+	policy := domain.NewLimitPolicy(cfg.MaxItems)
 
-	addUseCase := wishlist.NewAddProductToWishlistUseCase(adapter, adapter, policy)
+	addUseCase := application.NewAddProductToWishlistUseCase(postgresAdapter, postgresAdapter, policy)
 
-	handler := wishlist.NewHandler(addUseCase, logger)
+	handler := adapter.NewHandler(addUseCase, logger)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
+
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		if err := pool.Ping(r.Context()); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -59,7 +64,8 @@ func run(logger *slog.Logger) error {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux}
+	loggedHandler := handlers.LoggingHandler(os.Stdout, mux)
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: loggedHandler}
 
 	serverErr := make(chan error, 1)
 	go func() {

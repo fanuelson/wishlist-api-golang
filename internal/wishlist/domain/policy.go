@@ -1,13 +1,15 @@
-package wishlist
+package domain
+
+var DefaultMaxItemsPerWishlist = 20
 
 type LimitPolicy struct {
-	max int
+	Max int
 }
 
 func NewLimitPolicy(max int) LimitPolicy {
-	return LimitPolicy{max: max}
+	return LimitPolicy{Max: max}
 }
 
 func (p LimitPolicy) Allows(currentCount int) bool {
-	return currentCount < p.max
+	return currentCount < p.Max
 }

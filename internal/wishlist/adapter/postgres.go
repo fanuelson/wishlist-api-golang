@@ -1,4 +1,4 @@
-package wishlist
+package adapter
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/fanuelson/wishlist-api/internal/wishlist/domain"
 )
 
 type PostgresAdapter struct {
@@ -30,7 +32,7 @@ func (a *PostgresAdapter) querier(ctx context.Context) querier {
 	return a.pool
 }
 
-func (a *PostgresAdapter) WithinCustomerLock(ctx context.Context, customerID CustomerID, fn func(ctx context.Context) error) error {
+func (a *PostgresAdapter) WithinCustomerLock(ctx context.Context, customerID domain.CustomerID, fn func(ctx context.Context) error) error {
 	tx, err := a.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -54,7 +56,7 @@ func (a *PostgresAdapter) WithinCustomerLock(ctx context.Context, customerID Cus
 	return nil
 }
 
-func (a *PostgresAdapter) CountByCustomer(ctx context.Context, customerID CustomerID) (int, error) {
+func (a *PostgresAdapter) CountByCustomer(ctx context.Context, customerID domain.CustomerID) (int, error) {
 	var count int
 	if err := a.querier(ctx).QueryRow(ctx,
 		`SELECT count(*) FROM wishlist_items WHERE customer_id = $1`,
@@ -65,7 +67,7 @@ func (a *PostgresAdapter) CountByCustomer(ctx context.Context, customerID Custom
 	return count, nil
 }
 
-func (a *PostgresAdapter) Insert(ctx context.Context, item Item) (bool, error) {
+func (a *PostgresAdapter) Insert(ctx context.Context, item domain.Item) (bool, error) {
 	tag, err := a.querier(ctx).Exec(ctx,
 		`INSERT INTO wishlist_items (customer_id, product_id, added_at)
 		 VALUES ($1, $2, $3)
@@ -78,7 +80,7 @@ func (a *PostgresAdapter) Insert(ctx context.Context, item Item) (bool, error) {
 	return tag.RowsAffected() > 0, nil
 }
 
-func (a *PostgresAdapter) Delete(ctx context.Context, customerID CustomerID, productID ProductID) (bool, error) {
+func (a *PostgresAdapter) Delete(ctx context.Context, customerID domain.CustomerID, productID domain.ProductID) (bool, error) {
 	tag, err := a.querier(ctx).Exec(ctx,
 		`DELETE FROM wishlist_items WHERE customer_id = $1 AND product_id = $2`,
 		string(customerID), string(productID),
@@ -89,7 +91,7 @@ func (a *PostgresAdapter) Delete(ctx context.Context, customerID CustomerID, pro
 	return tag.RowsAffected() > 0, nil
 }
 
-func (a *PostgresAdapter) Exists(ctx context.Context, customerID CustomerID, productID ProductID) (bool, error) {
+func (a *PostgresAdapter) Exists(ctx context.Context, customerID domain.CustomerID, productID domain.ProductID) (bool, error) {
 	var exists bool
 	if err := a.querier(ctx).QueryRow(ctx,
 		`SELECT EXISTS (
@@ -103,7 +105,7 @@ func (a *PostgresAdapter) Exists(ctx context.Context, customerID CustomerID, pro
 	return exists, nil
 }
 
-func (a *PostgresAdapter) FindAllByCustomer(ctx context.Context, customerID CustomerID) ([]Item, error) {
+func (a *PostgresAdapter) FindAllByCustomer(ctx context.Context, customerID domain.CustomerID) ([]domain.Item, error) {
 	rows, err := a.querier(ctx).Query(ctx,
 		`SELECT customer_id, product_id, added_at
 		 FROM wishlist_items
@@ -116,9 +118,9 @@ func (a *PostgresAdapter) FindAllByCustomer(ctx context.Context, customerID Cust
 	}
 	defer rows.Close()
 
-	items := make([]Item, 0)
+	items := make([]domain.Item, 0)
 	for rows.Next() {
-		var item Item
+		var item domain.Item
 		if err := rows.Scan(&item.CustomerID, &item.ProductID, &item.AddedAt); err != nil {
 			return nil, fmt.Errorf("scan item: %w", err)
 		}

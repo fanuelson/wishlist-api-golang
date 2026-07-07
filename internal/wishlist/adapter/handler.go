@@ -1,19 +1,22 @@
-package wishlist
+package adapter
 
 import (
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+
+	"github.com/fanuelson/wishlist-api/internal/wishlist/application"
+	"github.com/fanuelson/wishlist-api/internal/wishlist/domain"
 )
 
 type Handler struct {
-	add    *AddProductToWishlistUseCase
+	add    application.AddProductToWishlistUseCase
 	logger *slog.Logger
 }
 
 func NewHandler(
-	add *AddProductToWishlistUseCase,
+	add application.AddProductToWishlistUseCase,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{add: add, logger: logger}
@@ -44,7 +47,7 @@ type errorResponse struct {
 }
 
 func (h *Handler) addItem(w http.ResponseWriter, r *http.Request) {
-	customerID := CustomerID(r.PathValue("customerId"))
+	customerID := domain.CustomerID(r.PathValue("customerId"))
 
 	var req addItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -52,7 +55,7 @@ func (h *Handler) addItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.add.Execute(r.Context(), customerID, ProductID(req.ProductID))
+	item, err := h.add.Execute(r.Context(), customerID, domain.ProductID(req.ProductID))
 	if err != nil {
 		h.mapError(w, err)
 		return
@@ -62,11 +65,11 @@ func (h *Handler) addItem(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) mapError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, ErrInvalidCustomerID), errors.Is(err, ErrInvalidProductID):
+	case errors.Is(err, domain.ErrInvalidCustomerID), errors.Is(err, domain.ErrInvalidProductID):
 		h.writeError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, ErrItemNotFound):
+	case errors.Is(err, domain.ErrItemNotFound):
 		h.writeError(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, ErrLimitExceeded):
+	case errors.Is(err, domain.ErrLimitExceeded):
 		h.writeError(w, http.StatusUnprocessableEntity, err.Error())
 	default:
 		h.logger.Error("unhandled error serving request", "error", err)
@@ -74,7 +77,7 @@ func (h *Handler) mapError(w http.ResponseWriter, err error) {
 	}
 }
 
-func toItemResponse(item Item) itemResponse {
+func toItemResponse(item domain.Item) itemResponse {
 	return itemResponse{
 		CustomerID: string(item.CustomerID),
 		ProductID:  string(item.ProductID),
